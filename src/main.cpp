@@ -65,7 +65,6 @@ int main(int argc, char* argv[]) {
     std::vector<float> output(batch_size * 1000);
     
     Timer timer;
-    timer.start();
     
     if (device == "cpu") {
 #ifdef BUILD_CPU
@@ -76,10 +75,13 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
+        // Start timer AFTER initialization (only measure inference time)
+        timer.start();
         if (!inference.infer(dummy_input.data(), output.data(), batch_size)) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
+        timer.stop();
 #else
         std::cerr << "CPU implementation not compiled in this build" << std::endl;
         return 1;
@@ -94,10 +96,13 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
+        // Start timer AFTER initialization (only measure inference time)
+        timer.start();
         if (!inference.infer(dummy_input.data(), output.data(), batch_size)) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
+        timer.stop();
 #else
         std::cerr << "CPU Multicore implementation not compiled in this build" << std::endl;
         return 1;
@@ -112,10 +117,14 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
+        // Start timer AFTER initialization (only measure inference time)
+        // This excludes CUDA context initialization, weight upload, etc.
+        timer.start();
         if (!inference.infer(dummy_input.data(), output.data(), batch_size)) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
+        timer.stop();
 #else
         std::cerr << "GPU implementation not compiled in this build" << std::endl;
         return 1;
@@ -126,8 +135,6 @@ int main(int argc, char* argv[]) {
         std::cerr << "Available devices: cpu, cpu_multicore, gpu" << std::endl;
         return 1;
     }
-    
-    timer.stop();
     
     std::cout << "\nInference completed in " << timer.elapsed_ms() << " ms" << std::endl;
     
