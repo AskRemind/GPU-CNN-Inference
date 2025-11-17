@@ -110,35 +110,41 @@ bool CPUInference::infer(const float* image_data, float* output) {
         return false;
     }
     
+    // Use ping-pong buffers to avoid unnecessary memory copies
+    // Maximum intermediate buffer size: [1, 64, 224, 224] = 3,211,264 (after conv0)
+    // Using static buffers allocated once, reused for all inference calls
+    static std::vector<float> bufferA(3211264);
+    static std::vector<float> bufferB(3211264);
+    
     // Input shape: [1, 3, 224, 224] (batch=1)
     std::vector<int> current_shape = {1, 3, 224, 224};
-    std::vector<float> current_data(1 * 3 * 224 * 224);
-    std::memcpy(current_data.data(), image_data, 1 * 3 * 224 * 224 * sizeof(float));
     
-    std::vector<float> next_data;
+    // Copy input image to first buffer
+    std::memcpy(bufferA.data(), image_data, 1 * 3 * 224 * 224 * sizeof(float));
+    
+    // Use pointers to swap buffers without copying data
+    float* input_ptr = bufferA.data();
+    float* output_ptr = bufferB.data();
     
     // Forward pass through all layers
     for (size_t i = 0; i < layers_.size(); i++) {
         std::vector<int> next_shape;
         next_shape = layers_[i]->getOutputShape(current_shape);
         
-        int next_size = 1;
-        for (int dim : next_shape) next_size *= dim;
-        
         if (i == layers_.size() - 1) {
             // Last layer: output directly to provided buffer
-            if (!layers_[i]->forward(current_data.data(), current_shape,
+            if (!layers_[i]->forward(input_ptr, current_shape,
                                     output, next_shape)) {
                 return false;
             }
         } else {
-            // Intermediate layers: use temporary buffer
-            next_data.resize(next_size);
-            if (!layers_[i]->forward(current_data.data(), current_shape,
-                                    next_data.data(), next_shape)) {
+            // Intermediate layers: write to output buffer
+            if (!layers_[i]->forward(input_ptr, current_shape,
+                                    output_ptr, next_shape)) {
                 return false;
             }
-            current_data = next_data;
+            // Swap pointers instead of copying data (ping-pong buffers)
+            std::swap(input_ptr, output_ptr);
             current_shape = next_shape;
         }
     }
