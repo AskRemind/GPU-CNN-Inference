@@ -352,10 +352,6 @@ This project is for educational purposes.
 
 Model weights are from PyTorch torchvision (ImageNet pre-trained VGG11), which are publicly available under the PyTorch license.
 
-## Contributing
-
-This is an academic project. Please refer to the course guidelines for submission requirements.
-
 ## Acknowledgments
 
 - VGG11 architecture and pre-trained weights from PyTorch torchvision
