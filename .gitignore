@@ -73,4 +73,8 @@ Makefile.cmake
 
 # Local artifacts
 projects_extracted.txt
+projects.pdf
+g.txt
 
+# Local documentation (not for GitHub)
+BUGS_AND_FIXES.md
