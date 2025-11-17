@@ -155,21 +155,13 @@ bool GPUConv2D::forward(const float* input, const std::vector<int>& input_shape,
     int out_w = (in_w + 2 * padding_ - kernel_size_) / stride_ + 1;
     output_shape = {batch, out_channels_, out_h, out_w};
     
-    int input_size = batch * in_channels_ * in_h * in_w;
-    int output_size = batch * out_channels_ * out_h * out_w;
+    // Input and output pointers are already on GPU (managed by GPUInference)
+    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
+    // Cast to non-const for kernel launch (kernel doesn't modify input)
+    float* device_input = const_cast<float*>(input);
+    float* device_output = output;
     
-    // Allocate device memory for input and output
-    float* device_input;
-    float* device_output;
-    
-    CHECK_CUDA_RET(cudaMalloc(&device_input, input_size * sizeof(float)));
-    CHECK_CUDA_RET(cudaMalloc(&device_output, output_size * sizeof(float)));
-    
-    // Copy input to device
-    CHECK_CUDA_RET(cudaMemcpy(device_input, input,
-                             input_size * sizeof(float), cudaMemcpyHostToDevice));
-    
-    // Launch kernel
+    // Launch kernel directly (all data already on GPU)
     launchConv2DKernel(device_input, device_weights_, device_bias_, device_output,
                       batch, in_channels_, out_channels_,
                       in_h, in_w, out_h, out_w,
@@ -179,18 +171,8 @@ bool GPUConv2D::forward(const float* input, const std::vector<int>& input_shape,
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(device_input);
-        cudaFree(device_output);
         return false;
     }
-    
-    // Copy output back to host
-    CHECK_CUDA_RET(cudaMemcpy(output, device_output,
-                             output_size * sizeof(float), cudaMemcpyDeviceToHost));
-    
-    // Free device memory
-    cudaFree(device_input);
-    cudaFree(device_output);
     
     return true;
 }

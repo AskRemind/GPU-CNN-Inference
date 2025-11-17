@@ -35,30 +35,19 @@ bool GPURELU::forward(const float* input, const std::vector<int>& input_shape,
     int size = 1;
     for (int dim : input_shape) size *= dim;
     
-    float* device_input;
-    float* device_output;
+    // Input and output pointers are already on GPU (managed by GPUInference)
+    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
+    float* device_input = const_cast<float*>(input);
+    float* device_output = output;
     
-    CHECK_CUDA_RET(cudaMalloc(&device_input, size * sizeof(float)));
-    CHECK_CUDA_RET(cudaMalloc(&device_output, size * sizeof(float)));
-    
-    CHECK_CUDA_RET(cudaMemcpy(device_input, input,
-                             size * sizeof(float), cudaMemcpyHostToDevice));
-    
+    // Launch kernel directly (all data already on GPU)
     launchRELUKernel(device_input, device_output, size);
     
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(device_input);
-        cudaFree(device_output);
         return false;
     }
-    
-    CHECK_CUDA_RET(cudaMemcpy(output, device_output,
-                             size * sizeof(float), cudaMemcpyDeviceToHost));
-    
-    cudaFree(device_input);
-    cudaFree(device_output);
     
     return true;
 }
@@ -124,18 +113,12 @@ bool GPUMaxPool2D::forward(const float* input, const std::vector<int>& input_sha
     
     output_shape = {batch, channels, out_h, out_w};
     
-    int input_size = batch * channels * in_h * in_w;
-    int output_size = batch * channels * out_h * out_w;
+    // Input and output pointers are already on GPU (managed by GPUInference)
+    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
+    float* device_input = const_cast<float*>(input);
+    float* device_output = output;
     
-    float* device_input;
-    float* device_output;
-    
-    CHECK_CUDA_RET(cudaMalloc(&device_input, input_size * sizeof(float)));
-    CHECK_CUDA_RET(cudaMalloc(&device_output, output_size * sizeof(float)));
-    
-    CHECK_CUDA_RET(cudaMemcpy(device_input, input,
-                             input_size * sizeof(float), cudaMemcpyHostToDevice));
-    
+    // Launch kernel directly (all data already on GPU)
     launchMaxPool2DKernel(device_input, device_output,
                          batch, channels, in_h, in_w, out_h, out_w,
                          kernel_size_, stride_);
@@ -143,16 +126,8 @@ bool GPUMaxPool2D::forward(const float* input, const std::vector<int>& input_sha
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(device_input);
-        cudaFree(device_output);
         return false;
     }
-    
-    CHECK_CUDA_RET(cudaMemcpy(output, device_output,
-                             output_size * sizeof(float), cudaMemcpyDeviceToHost));
-    
-    cudaFree(device_input);
-    cudaFree(device_output);
     
     return true;
 }
@@ -251,34 +226,20 @@ bool GPULinear::forward(const float* input, const std::vector<int>& input_shape,
     
     output_shape = {batch, out_features_};
     
-    int input_size = batch * in_features_;
-    int output_size = batch * out_features_;
+    // Input and output pointers are already on GPU (managed by GPUInference)
+    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
+    float* device_input = const_cast<float*>(input);
+    float* device_output = output;
     
-    float* device_input;
-    float* device_output;
-    
-    CHECK_CUDA_RET(cudaMalloc(&device_input, input_size * sizeof(float)));
-    CHECK_CUDA_RET(cudaMalloc(&device_output, output_size * sizeof(float)));
-    
-    CHECK_CUDA_RET(cudaMemcpy(device_input, input,
-                             input_size * sizeof(float), cudaMemcpyHostToDevice));
-    
+    // Launch kernel directly (all data already on GPU)
     launchLinearKernel(device_input, device_weights_, device_bias_, device_output,
                       batch, in_features_, out_features_);
     
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(device_input);
-        cudaFree(device_output);
         return false;
     }
-    
-    CHECK_CUDA_RET(cudaMemcpy(output, device_output,
-                             output_size * sizeof(float), cudaMemcpyDeviceToHost));
-    
-    cudaFree(device_input);
-    cudaFree(device_output);
     
     return true;
 }
@@ -325,32 +286,19 @@ bool GPUSoftmax::forward(const float* input, const std::vector<int>& input_shape
         num_classes *= input_shape[i];
     }
     
-    int size = batch * num_classes;
+    // Input and output pointers are already on GPU (managed by GPUInference)
+    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
+    float* device_input = const_cast<float*>(input);
+    float* device_output = output;
     
-    float* device_input;
-    float* device_output;
-    
-    CHECK_CUDA_RET(cudaMalloc(&device_input, size * sizeof(float)));
-    CHECK_CUDA_RET(cudaMalloc(&device_output, size * sizeof(float)));
-    
-    CHECK_CUDA_RET(cudaMemcpy(device_input, input,
-                             size * sizeof(float), cudaMemcpyHostToDevice));
-    
+    // Launch kernel directly (all data already on GPU)
     launchSoftmaxKernel(device_input, device_output, batch, num_classes);
     
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(device_input);
-        cudaFree(device_output);
         return false;
     }
-    
-    CHECK_CUDA_RET(cudaMemcpy(output, device_output,
-                             size * sizeof(float), cudaMemcpyDeviceToHost));
-    
-    cudaFree(device_input);
-    cudaFree(device_output);
     
     return true;
 }
