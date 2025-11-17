@@ -43,16 +43,18 @@ bool CPUMulticoreConv2D::forward(const float* input, const std::vector<int>& inp
     int out_w = (in_w + 2 * padding_ - kernel_size_) / stride_ + 1;
     output_shape = {batch, out_channels_, out_h, out_w};
     
-    // Initialize output with bias (parallelized)
+    // Initialize output with bias
+    // Note: Bias initialization is fast, no need to parallelize for batch=1
     int output_size = batch * out_channels_ * out_h * out_w;
-    #pragma omp parallel for
     for (int i = 0; i < output_size; i++) {
         int channel = (i / (out_h * out_w)) % out_channels_;
         output[i] = bias_[channel];
     }
     
-    // Perform convolution for each batch (parallelized)
-    #pragma omp parallel for
+    // Perform convolution for each batch
+    // Note: Do NOT parallelize batch loop when batch=1, as it causes:
+    // 1. Unnecessary thread creation overhead
+    // 2. Nested parallelism issues that disable parallelization in convolve()
     for (int b = 0; b < batch; b++) {
         convolve(input + b * in_channels_ * in_h * in_w,
                 output + b * out_channels_ * out_h * out_w,

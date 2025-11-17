@@ -100,8 +100,9 @@ bool CPUMulticoreSoftmax::forward(const float* input, const std::vector<int>& in
         num_classes *= input_shape[i];
     }
     
-    // Parallelize batch loop (each batch is independent)
-    #pragma omp parallel for
+    // Note: Do NOT parallelize batch loop when batch=1, as it causes:
+    // 1. Unnecessary thread creation overhead (more than the computation itself)
+    // 2. Softmax computation is relatively fast, parallelization overhead not worth it
     for (int b = 0; b < batch; b++) {
         // Find max for numerical stability
         float max_val = input[b * num_classes];
