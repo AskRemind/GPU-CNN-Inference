@@ -155,6 +155,12 @@ bool GPUConv2D::forward(const float* input, const std::vector<int>& input_shape,
     int out_w = (in_w + 2 * padding_ - kernel_size_) / stride_ + 1;
     output_shape = {batch, out_channels_, out_h, out_w};
     
+    // Debug: Print batch info for first layer only
+    if (name_ == "conv0") {
+        std::cout << "[GPU Conv0 Debug] batch=" << batch 
+                  << ", total_output_elements=" << (batch * out_channels_ * out_h * out_w) << std::endl;
+    }
+    
     // Input and output pointers are already on GPU (managed by GPUInference)
     // No cudaMalloc, cudaMemcpy, or cudaFree needed here
     // Cast to non-const for kernel launch (kernel doesn't modify input)

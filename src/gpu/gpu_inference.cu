@@ -154,9 +154,15 @@ bool GPUInference::infer(const float* image_data, float* output, int batch_size)
     // Input shape: [batch_size, 3, 224, 224]
     std::vector<int> current_shape = {batch_size, 3, 224, 224};
     
+    // Debug: Print batch_size and buffer info
+    std::cout << "[GPU Debug] batch_size=" << batch_size 
+              << ", max_buffer_size=" << max_buffer_size 
+              << ", allocated_buffer_size=" << allocated_buffer_size << std::endl;
+    
     // Copy input images to GPU (ONCE at the beginning)
+    int input_size = batch_size * 3 * 224 * 224;
     CHECK_CUDA_RET(cudaMemcpy(device_buffer_A, image_data,
-                             (batch_size * 3 * 224 * 224) * sizeof(float),
+                             input_size * sizeof(float),
                              cudaMemcpyHostToDevice));
     
     // Use pointers to swap buffers without copying data
