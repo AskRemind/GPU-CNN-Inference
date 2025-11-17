@@ -25,7 +25,9 @@ COMMON_OBJ = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(COMMON_SRC))
 CPU_OBJ = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(CPU_SRC))
 CPU_MULTICORE_OBJ = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(CPU_MULTICORE_SRC))
 GPU_OBJ = $(patsubst $(SRC_DIR)/%.cu,$(BUILD_DIR)/%.o,$(GPU_CU_SRC))
-MAIN_OBJ = $(BUILD_DIR)/main.o
+MAIN_OBJ_CPU = $(BUILD_DIR)/main_cpu.o
+MAIN_OBJ_CPU_MULTICORE = $(BUILD_DIR)/main_cpu_multicore.o
+MAIN_OBJ_GPU = $(BUILD_DIR)/main_gpu.o
 
 # Targets
 TARGET_CPU = $(BUILD_DIR)/cnn_inference_cpu
@@ -42,17 +44,17 @@ cpu_multicore: $(TARGET_CPU_MULTICORE)
 
 gpu: $(TARGET_GPU)
 
-$(TARGET_CPU): $(COMMON_OBJ) $(CPU_OBJ) $(MAIN_OBJ)
+$(TARGET_CPU): $(COMMON_OBJ) $(CPU_OBJ) $(MAIN_OBJ_CPU)
 	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "Build complete: $@"
 
-$(TARGET_CPU_MULTICORE): $(COMMON_OBJ) $(CPU_MULTICORE_OBJ) $(MAIN_OBJ)
+$(TARGET_CPU_MULTICORE): $(COMMON_OBJ) $(CPU_MULTICORE_OBJ) $(MAIN_OBJ_CPU_MULTICORE)
 	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(OPENMP_FLAGS) -o $@ $^ $(LDFLAGS) $(OPENMP_FLAGS)
 	@echo "Build complete: $@"
 
-$(TARGET_GPU): $(COMMON_OBJ) $(GPU_OBJ) $(MAIN_OBJ)
+$(TARGET_GPU): $(COMMON_OBJ) $(GPU_OBJ) $(MAIN_OBJ_GPU)
 	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(CUDA_LDFLAGS)
 	@echo "Build complete: $@"
@@ -60,6 +62,19 @@ $(TARGET_GPU): $(COMMON_OBJ) $(GPU_OBJ) $(MAIN_OBJ)
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -c $< -o $@
+
+# Compile main.cpp with different defines for different targets
+$(MAIN_OBJ_CPU): $(MAIN_SRC)
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -DBUILD_CPU -c $< -o $@
+
+$(MAIN_OBJ_CPU_MULTICORE): $(MAIN_SRC)
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(OPENMP_FLAGS) $(INCLUDE_DIR) -DBUILD_CPU_MULTICORE -c $< -o $@
+
+$(MAIN_OBJ_GPU): $(MAIN_SRC)
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -DBUILD_GPU -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cu
 	@mkdir -p $(dir $@)

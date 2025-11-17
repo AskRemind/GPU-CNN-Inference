@@ -2,10 +2,19 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include "cpu/cpu_inference.h"
-#include "cpu_multicore/cpu_multicore_inference.h"
-#include "gpu/gpu_inference.h"
 #include "common/timer.h"
+
+#ifdef BUILD_CPU
+#include "cpu/cpu_inference.h"
+#endif
+
+#ifdef BUILD_CPU_MULTICORE
+#include "cpu_multicore/cpu_multicore_inference.h"
+#endif
+
+#ifdef BUILD_GPU
+#include "gpu/gpu_inference.h"
+#endif
 
 /**
  * Main entry point for CNN inference
@@ -50,6 +59,7 @@ int main(int argc, char* argv[]) {
     timer.start();
     
     if (device == "cpu") {
+#ifdef BUILD_CPU
         CPUInference inference;
         
         if (!inference.initialize(model_dir)) {
@@ -61,8 +71,13 @@ int main(int argc, char* argv[]) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
+#else
+        std::cerr << "CPU implementation not compiled in this build" << std::endl;
+        return 1;
+#endif
         
     } else if (device == "cpu_multicore") {
+#ifdef BUILD_CPU_MULTICORE
         CPUMulticoreInference inference;
         
         if (!inference.initialize(model_dir)) {
@@ -74,8 +89,13 @@ int main(int argc, char* argv[]) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
+#else
+        std::cerr << "CPU Multicore implementation not compiled in this build" << std::endl;
+        return 1;
+#endif
         
     } else if (device == "gpu") {
+#ifdef BUILD_GPU
         GPUInference inference;
         
         if (!inference.initialize(model_dir)) {
@@ -87,6 +107,10 @@ int main(int argc, char* argv[]) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
+#else
+        std::cerr << "GPU implementation not compiled in this build" << std::endl;
+        return 1;
+#endif
         
     } else {
         std::cerr << "Unknown device: " << device << std::endl;
