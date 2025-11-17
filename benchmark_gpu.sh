@@ -108,7 +108,8 @@ for i in $(seq 1 $RUNS); do
         fi
         
         # Extract time from program output (if available)
-        TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        # Match "Inference completed in X.XX ms" - extract the number before " ms"
+        TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | sed -n 's/.*Inference completed in \([0-9]\+\.[0-9]\+\) ms.*/\1/p' | head -1)
         
         # If time extraction failed, use elapsed time from /usr/bin/time
         if [ -z "$TIME_MS" ]; then
@@ -164,7 +165,8 @@ for i in $(seq 1 $RUNS); do
         rm -f /tmp/inference_output_$$.txt
         
         # Extract time from output
-        TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        # Match "Inference completed in X.XX ms" - extract the number before " ms"
+        TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | sed -n 's/.*Inference completed in \([0-9]\+\.[0-9]\+\) ms.*/\1/p' | head -1)
         
         # If time extraction failed, use wall-clock time
         if [ -z "$TIME_MS" ]; then
