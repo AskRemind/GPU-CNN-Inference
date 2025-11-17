@@ -3,13 +3,15 @@
 #include <vector>
 #include <algorithm>
 #include "cpu/cpu_inference.h"
+#include "cpu_multicore/cpu_multicore_inference.h"
+#include "gpu/gpu_inference.h"
 #include "common/timer.h"
 
 /**
  * Main entry point for CNN inference
  * 
  * Usage:
- *   ./cnn_inference --model models/ --image test.jpg --device cpu
+ *   ./cnn_inference --model models/ --image test.jpg --device cpu|cpu_multicore|gpu
  */
 int main(int argc, char* argv[]) {
     std::string model_dir = "models";
@@ -30,7 +32,7 @@ int main(int argc, char* argv[]) {
                       << "Options:\n"
                       << "  --model DIR    Model directory (default: models/)\n"
                       << "  --image FILE   Input image file\n"
-                      << "  --device DEV   Device: cpu or gpu (default: cpu)\n"
+                      << "  --device DEV   Device: cpu, cpu_multicore, or gpu (default: cpu)\n"
                       << "  --help         Show this help\n";
             return 0;
         }
@@ -40,6 +42,13 @@ int main(int argc, char* argv[]) {
     std::cout << "Model directory: " << model_dir << std::endl;
     std::cout << "Device: " << device << std::endl;
     
+    // For now, create dummy input (will be replaced with image loader)
+    std::vector<float> dummy_input(1 * 3 * 224 * 224, 0.0f);
+    std::vector<float> output(1000);
+    
+    Timer timer;
+    timer.start();
+    
     if (device == "cpu") {
         CPUInference inference;
         
@@ -48,41 +57,58 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
-        // For now, create dummy input (will be replaced with image loader)
-        std::vector<float> dummy_input(1 * 3 * 224 * 224, 0.0f);
-        std::vector<float> output(1000);
+        if (!inference.infer(dummy_input.data(), output.data())) {
+            std::cerr << "Inference failed" << std::endl;
+            return 1;
+        }
         
-        Timer timer;
-        timer.start();
+    } else if (device == "cpu_multicore") {
+        CPUMulticoreInference inference;
+        
+        if (!inference.initialize(model_dir)) {
+            std::cerr << "Failed to initialize CPU Multicore inference engine" << std::endl;
+            return 1;
+        }
         
         if (!inference.infer(dummy_input.data(), output.data())) {
             std::cerr << "Inference failed" << std::endl;
             return 1;
         }
         
-        timer.stop();
-        
-        std::cout << "\nInference completed in " << timer.elapsed_ms() << " ms" << std::endl;
-        
-        // Find top 5 predictions
-        std::vector<std::pair<float, int>> predictions;
-        for (int i = 0; i < 1000; i++) {
-            predictions.push_back({output[i], i});
-        }
-        std::sort(predictions.rbegin(), predictions.rend());
-        
-        std::cout << "\nTop 5 predictions:" << std::endl;
-        for (int i = 0; i < 5; i++) {
-            std::cout << "  " << (i+1) << ". Class " << predictions[i].second
-                      << " (" << predictions[i].first * 100 << "%)" << std::endl;
-        }
-        
     } else if (device == "gpu") {
-        std::cout << "GPU inference not yet implemented" << std::endl;
-        return 1;
+        GPUInference inference;
+        
+        if (!inference.initialize(model_dir)) {
+            std::cerr << "Failed to initialize GPU inference engine" << std::endl;
+            return 1;
+        }
+        
+        if (!inference.infer(dummy_input.data(), output.data())) {
+            std::cerr << "Inference failed" << std::endl;
+            return 1;
+        }
+        
     } else {
         std::cerr << "Unknown device: " << device << std::endl;
+        std::cerr << "Available devices: cpu, cpu_multicore, gpu" << std::endl;
         return 1;
+    }
+    
+    timer.stop();
+    
+    std::cout << "\nInference completed in " << timer.elapsed_ms() << " ms" << std::endl;
+    
+    // Find top 5 predictions
+    std::vector<std::pair<float, int>> predictions;
+    for (int i = 0; i < 1000; i++) {
+        predictions.push_back({output[i], i});
+    }
+    std::sort(predictions.rbegin(), predictions.rend());
+    
+    std::cout << "\nTop 5 predictions:" << std::endl;
+    for (int i = 0; i < 5; i++) {
+        std::cout << "  " << (i+1) << ". Class " << predictions[i].second
+                  << " (" << predictions[i].first * 100 << "%)" << std::endl;
     }
     
     return 0;
