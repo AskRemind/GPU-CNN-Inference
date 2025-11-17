@@ -109,7 +109,8 @@ for i in $(seq 1 $RUNS); do
         
         # Extract time from program output (if available)
         # Match "Inference completed in X.XX ms" - extract the number before " ms"
-        TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | sed -n 's/.*Inference completed in \([0-9]\+\.[0-9]\+\) ms.*/\1/p' | head -1)
+        # Use awk for better compatibility
+        TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | awk '{for(i=1;i<=NF;i++){if($i=="ms" && $(i-1)~/^[0-9]+\.?[0-9]*$/){print $(i-1); exit}}}')
         
         # If time extraction failed, use elapsed time from /usr/bin/time
         if [ -z "$TIME_MS" ]; then
@@ -166,7 +167,8 @@ for i in $(seq 1 $RUNS); do
         
         # Extract time from output
         # Match "Inference completed in X.XX ms" - extract the number before " ms"
-        TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | sed -n 's/.*Inference completed in \([0-9]\+\.[0-9]\+\) ms.*/\1/p' | head -1)
+        # Use awk for better compatibility
+        TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | awk '{for(i=1;i<=NF;i++){if($i=="ms" && $(i-1)~/^[0-9]+\.?[0-9]*$/){print $(i-1); exit}}}')
         
         # If time extraction failed, use wall-clock time
         if [ -z "$TIME_MS" ]; then
