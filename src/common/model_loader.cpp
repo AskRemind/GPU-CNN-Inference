@@ -31,7 +31,7 @@ float* ModelLoader::loadWeightFile(const std::string& filepath, int size) {
     float* weights = new float[size];
     file.read(reinterpret_cast<char*>(weights), size * sizeof(float));
     
-    if (file.gcount() != size * sizeof(float)) {
+    if (static_cast<size_t>(file.gcount()) != size * sizeof(float)) {
         std::cerr << "Error: File size mismatch for " << filepath << std::endl;
         delete[] weights;
         return nullptr;

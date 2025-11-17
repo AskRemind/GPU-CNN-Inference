@@ -1,4 +1,5 @@
 #include "cpu_conv2d.h"
+#include <iostream>
 #include <cstring>
 #include <algorithm>
 
