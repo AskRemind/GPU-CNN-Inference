@@ -1,0 +1,76 @@
+# Build directories
+build/
+bin/
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dylib
+
+# Compiled binaries
+cnn_inference
+cnn_inference_cpu
+cnn_inference_gpu
+benchmark
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CUDA
+*.cubin
+*.ptx
+*.fatbin
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Large dataset files - exclude all data
+data/
+data/*.tar.gz
+data/*.zip
+
+# Model weights - exclude weights (upload separately)
+models/*.dat
+models/*.json
+models/*.txt
+
+# Results and logs
+results/
+*.log
+*.csv
+profile.nsys-rep/
+profile.ncu
+*.ncu-rep
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+
+# Backup files
+*.bak
+*.backup
+
+# Local artifacts
+projects_extracted.txt
+
