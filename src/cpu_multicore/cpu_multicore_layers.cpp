@@ -31,13 +31,15 @@ bool CPUMulticoreMaxPool2D::forward(const float* input, const std::vector<int>& 
                             int iw = ow * stride_ + kw;
                             
                             if (ih < in_h && iw < in_w) {
-                                int idx = c * in_h * in_w + ih * in_w + iw;
+                                // Fix: Add batch offset to input index
+                                int idx = b * channels * in_h * in_w + c * in_h * in_w + ih * in_w + iw;
                                 max_val = std::max(max_val, input[idx]);
                             }
                         }
                     }
                     
-                    int out_idx = c * out_h * out_w + oh * out_w + ow;
+                    // Fix: Add batch offset to output index
+                    int out_idx = b * channels * out_h * out_w + c * out_h * out_w + oh * out_w + ow;
                     output[out_idx] = max_val;
                 }
             }
