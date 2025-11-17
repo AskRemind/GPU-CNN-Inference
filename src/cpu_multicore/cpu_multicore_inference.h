@@ -23,12 +23,13 @@ public:
     bool initialize(const std::string& model_dir);
     
     /**
-     * Run inference on a single image
-     * @param image_data Image data (CHW format, normalized)
-     * @param output Output probabilities for each class
+     * Run inference on a batch of images
+     * @param image_data Image data (NCHW format, normalized), where N is batch_size
+     * @param output Output probabilities for each class (N x num_classes)
+     * @param batch_size Number of images in the batch
      * @return true if successful
      */
-    bool infer(const float* image_data, float* output);
+    bool infer(const float* image_data, float* output, int batch_size = 1);
     
     /**
      * Get number of output classes

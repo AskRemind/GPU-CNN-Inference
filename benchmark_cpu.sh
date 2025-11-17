@@ -70,7 +70,7 @@ for i in $(seq 1 $RUNS); do
     # Measure execution time and memory using /usr/bin/time -v
     if command -v /usr/bin/time >/dev/null 2>&1; then
         # Use /usr/bin/time -v for detailed statistics
-        TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu 2>&1)
+        TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu --batch_size "$BATCH" 2>&1)
         
         # Extract time from program output (if available)
         TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
@@ -97,7 +97,7 @@ for i in $(seq 1 $RUNS); do
         START=$(date +%s.%N 2>/dev/null || date +%s)
         
         # Run in background and monitor memory
-        ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu > /tmp/inference_output_$$.txt 2>&1 &
+        ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu --batch_size "$BATCH" > /tmp/inference_output_$$.txt 2>&1 &
         INFERENCE_PID=$!
         
         # Monitor memory while process is running

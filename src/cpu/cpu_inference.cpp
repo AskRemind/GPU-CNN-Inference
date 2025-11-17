@@ -104,23 +104,40 @@ void CPUInference::buildNetwork() {
     std::cout << "Network built with " << layers_.size() << " layers" << std::endl;
 }
 
-bool CPUInference::infer(const float* image_data, float* output) {
+bool CPUInference::infer(const float* image_data, float* output, int batch_size) {
     if (!initialized_) {
         std::cerr << "Error: Inference engine not initialized" << std::endl;
         return false;
     }
     
+    if (batch_size <= 0) {
+        std::cerr << "Error: Invalid batch size: " << batch_size << std::endl;
+        return false;
+    }
+    
     // Use ping-pong buffers to avoid unnecessary memory copies
-    // Maximum intermediate buffer size: [1, 64, 224, 224] = 3,211,264 (after conv0)
-    // Using static buffers allocated once, reused for all inference calls
-    static std::vector<float> bufferA(3211264);
+    // Maximum intermediate buffer size: [batch_size, 64, 224, 224]
+    // For batch_size up to 32, max is: 32 * 64 * 224 * 224 = 102,760,448
+    // We'll allocate buffer dynamically if needed, or use static for common sizes
+    static std::vector<float> bufferA(3211264);  // For batch=1: [1, 64, 224, 224]
     static std::vector<float> bufferB(3211264);
     
-    // Input shape: [1, 3, 224, 224] (batch=1)
-    std::vector<int> current_shape = {1, 3, 224, 224};
+    // Calculate required buffer size
+    int max_buffer_size = batch_size * 64 * 224 * 224;  // After conv0
+    if (max_buffer_size > 3211264) {
+        // Need larger buffers for larger batches
+        static std::vector<float> large_bufferA, large_bufferB;
+        large_bufferA.resize(max_buffer_size);
+        large_bufferB.resize(max_buffer_size);
+        bufferA.swap(large_bufferA);
+        bufferB.swap(large_bufferB);
+    }
     
-    // Copy input image to first buffer
-    std::memcpy(bufferA.data(), image_data, 1 * 3 * 224 * 224 * sizeof(float));
+    // Input shape: [batch_size, 3, 224, 224]
+    std::vector<int> current_shape = {batch_size, 3, 224, 224};
+    
+    // Copy input images to first buffer
+    std::memcpy(bufferA.data(), image_data, batch_size * 3 * 224 * 224 * sizeof(float));
     
     // Use pointers to swap buffers without copying data
     float* input_ptr = bufferA.data();
@@ -133,6 +150,7 @@ bool CPUInference::infer(const float* image_data, float* output) {
         
         if (i == layers_.size() - 1) {
             // Last layer: output directly to provided buffer
+            // Output shape: [batch_size, 1000]
             if (!layers_[i]->forward(input_ptr, current_shape,
                                     output, next_shape)) {
                 return false;

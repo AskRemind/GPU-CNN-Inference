@@ -109,20 +109,26 @@ void GPUInference::buildNetwork() {
     std::cout << "Network built with " << layers_.size() << " layers" << std::endl;
 }
 
-bool GPUInference::infer(const float* image_data, float* output) {
+bool GPUInference::infer(const float* image_data, float* output, int batch_size) {
     if (!initialized_) {
         std::cerr << "Error: Inference engine not initialized" << std::endl;
         return false;
     }
     
+    if (batch_size <= 0) {
+        std::cerr << "Error: Invalid batch size: " << batch_size << std::endl;
+        return false;
+    }
+    
     // Use ping-pong buffers on GPU to avoid Host-GPU-Host round trips
-    // Maximum intermediate buffer size: [1, 64, 224, 224] = 3,211,264 (after conv0)
-    const int max_buffer_size = 3211264;
+    // Maximum intermediate buffer size: [batch_size, 64, 224, 224]
+    // For batch_size up to 32, max is: 32 * 64 * 224 * 224 = 102,760,448
+    int max_buffer_size = batch_size * 64 * 224 * 224;  // After conv0
     
     // Allocate GPU buffers (static for reuse across inference calls)
     static float* device_buffer_A = nullptr;
     static float* device_buffer_B = nullptr;
-    static bool buffers_allocated = false;
+    static int allocated_buffer_size = 0;
     
     #define CHECK_CUDA_RET(call) \
         do { \
@@ -134,18 +140,23 @@ bool GPUInference::infer(const float* image_data, float* output) {
             } \
         } while(0)
     
-    if (!buffers_allocated) {
+    // Allocate or reallocate buffers if needed
+    if (!device_buffer_A || max_buffer_size > allocated_buffer_size) {
+        if (device_buffer_A) {
+            cudaFree(device_buffer_A);
+            cudaFree(device_buffer_B);
+        }
         CHECK_CUDA_RET(cudaMalloc(&device_buffer_A, max_buffer_size * sizeof(float)));
         CHECK_CUDA_RET(cudaMalloc(&device_buffer_B, max_buffer_size * sizeof(float)));
-        buffers_allocated = true;
+        allocated_buffer_size = max_buffer_size;
     }
     
-    // Input shape: [1, 3, 224, 224] (batch=1)
-    std::vector<int> current_shape = {1, 3, 224, 224};
+    // Input shape: [batch_size, 3, 224, 224]
+    std::vector<int> current_shape = {batch_size, 3, 224, 224};
     
-    // Copy input image to GPU (ONCE at the beginning)
+    // Copy input images to GPU (ONCE at the beginning)
     CHECK_CUDA_RET(cudaMemcpy(device_buffer_A, image_data,
-                             (1 * 3 * 224 * 224) * sizeof(float),
+                             (batch_size * 3 * 224 * 224) * sizeof(float),
                              cudaMemcpyHostToDevice));
     
     // Use pointers to swap buffers without copying data
@@ -159,7 +170,7 @@ bool GPUInference::infer(const float* image_data, float* output) {
         
         if (i == layers_.size() - 1) {
             // Last layer: allocate temporary GPU buffer for final output
-            int final_size = 1000; // [1, 1000]
+            int final_size = batch_size * 1000;  // [batch_size, 1000]
             float* final_device_output;
             CHECK_CUDA_RET(cudaMalloc(&final_device_output, final_size * sizeof(float)));
             
