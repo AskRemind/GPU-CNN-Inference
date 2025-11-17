@@ -121,16 +121,15 @@ bool CPUInference::infer(const float* image_data, float* output, int batch_size)
     // We'll allocate buffer dynamically if needed, or use static for common sizes
     static std::vector<float> bufferA(3211264);  // For batch=1: [1, 64, 224, 224]
     static std::vector<float> bufferB(3211264);
+    static int current_buffer_size = 3211264;  // Track current buffer size
     
     // Calculate required buffer size
     int max_buffer_size = batch_size * 64 * 224 * 224;  // After conv0
-    if (max_buffer_size > 3211264) {
-        // Need larger buffers for larger batches
-        static std::vector<float> large_bufferA, large_bufferB;
-        large_bufferA.resize(max_buffer_size);
-        large_bufferB.resize(max_buffer_size);
-        bufferA.swap(large_bufferA);
-        bufferB.swap(large_bufferB);
+    if (max_buffer_size > current_buffer_size) {
+        // Need larger buffers for larger batches - resize directly
+        bufferA.resize(max_buffer_size);
+        bufferB.resize(max_buffer_size);
+        current_buffer_size = max_buffer_size;
     }
     
     // Input shape: [batch_size, 3, 224, 224]
