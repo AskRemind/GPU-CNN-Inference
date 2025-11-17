@@ -67,26 +67,71 @@ for i in $(seq 1 $RUNS); do
     # Note: Current implementation doesn't support batch size yet
     # This will be updated when batch inference is implemented
     
-    # Measure execution time
-    START=$(date +%s.%N 2>/dev/null || date +%s)
-    OUTPUT_TEXT=$(./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu 2>&1)
-    END=$(date +%s.%N 2>/dev/null || date +%s)
-    
-    # Extract time from output (if available)
-    TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
-    
-    # If time extraction failed, use wall-clock time
-    if [ -z "$TIME_MS" ]; then
-        # Use awk for floating point calculation (more portable than bc)
-        ELAPSED=$(awk "BEGIN {print $END - $START}")
-        TIME_MS=$(awk "BEGIN {print $ELAPSED * 1000}")
-    fi
-    
-    # Measure memory usage (peak RSS in MB)
-    # Note: This is approximate - actual memory profiling requires valgrind or similar
-    MEMORY_MB=$(ps aux 2>/dev/null | grep cnn_inference_cpu | grep -v grep | awk '{print $6/1024}' | head -1)
-    if [ -z "$MEMORY_MB" ] || [ "$MEMORY_MB" = "0" ]; then
-        MEMORY_MB="N/A"
+    # Measure execution time and memory using /usr/bin/time -v
+    if command -v /usr/bin/time >/dev/null 2>&1; then
+        # Use /usr/bin/time -v for detailed statistics
+        TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu 2>&1)
+        
+        # Extract time from program output (if available)
+        TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        
+        # If time extraction failed, use elapsed time from /usr/bin/time
+        if [ -z "$TIME_MS" ]; then
+            ELAPSED=$(echo "$TIME_OUTPUT" | grep "Elapsed (wall clock) time" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+            if [ -n "$ELAPSED" ]; then
+                TIME_MS=$(awk "BEGIN {print $ELAPSED * 1000}")
+            else
+                TIME_MS="N/A"
+            fi
+        fi
+        
+        # Extract peak memory usage (Maximum resident set size) in KB, convert to MB
+        MEMORY_KB=$(echo "$TIME_OUTPUT" | grep "Maximum resident set size (kbytes)" | grep -oE '[0-9]+' | head -1)
+        if [ -n "$MEMORY_KB" ] && [ "$MEMORY_KB" != "0" ]; then
+            MEMORY_MB=$(awk "BEGIN {print $MEMORY_KB / 1024}")
+        else
+            MEMORY_MB="N/A"
+        fi
+    else
+        # Fallback: Use date and ps (less accurate)
+        START=$(date +%s.%N 2>/dev/null || date +%s)
+        
+        # Run in background and monitor memory
+        ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu > /tmp/inference_output_$$.txt 2>&1 &
+        INFERENCE_PID=$!
+        
+        # Monitor memory while process is running
+        PEAK_MEMORY_KB=0
+        while kill -0 $INFERENCE_PID 2>/dev/null; do
+            CURRENT_MEM=$(ps -o rss= -p $INFERENCE_PID 2>/dev/null | awk '{print $1}')
+            if [ -n "$CURRENT_MEM" ] && [ "$CURRENT_MEM" -gt "$PEAK_MEMORY_KB" ]; then
+                PEAK_MEMORY_KB=$CURRENT_MEM
+            fi
+            sleep 0.1
+        done
+        
+        wait $INFERENCE_PID
+        END=$(date +%s.%N 2>/dev/null || date +%s)
+        
+        # Read output
+        OUTPUT_TEXT=$(cat /tmp/inference_output_$$.txt)
+        rm -f /tmp/inference_output_$$.txt
+        
+        # Extract time from output
+        TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+        
+        # If time extraction failed, use wall-clock time
+        if [ -z "$TIME_MS" ]; then
+            ELAPSED=$(awk "BEGIN {print $END - $START}")
+            TIME_MS=$(awk "BEGIN {print $ELAPSED * 1000}")
+        fi
+        
+        # Convert memory from KB to MB
+        if [ "$PEAK_MEMORY_KB" -gt 0 ]; then
+            MEMORY_MB=$(awk "BEGIN {print $PEAK_MEMORY_KB / 1024}")
+        else
+            MEMORY_MB="N/A"
+        fi
     fi
     
     # Write to CSV
