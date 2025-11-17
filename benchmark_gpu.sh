@@ -68,10 +68,39 @@ echo "run,batch_size,time_ms,memory_mb,gpu_memory_mb" > "$OUTPUT"
 for i in $(seq 1 $RUNS); do
     echo "Run $i/$RUNS..."
     
+    # Get baseline GPU memory before inference (if available)
+    GPU_BASELINE_MB=0
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        GPU_BASELINE_MB=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
+        if [ -z "$GPU_BASELINE_MB" ]; then
+            GPU_BASELINE_MB=0
+        fi
+    fi
+    
+    # Start GPU memory monitoring in background (monitor during inference)
+    GPU_MONITOR_PID=""
+    GPU_MEM_FILE="/tmp/gpu_mem_$$.txt"
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        # Monitor GPU memory every 50ms during inference
+        (
+            while true; do
+                nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 >> "$GPU_MEM_FILE"
+                sleep 0.05
+            done
+        ) &
+        GPU_MONITOR_PID=$!
+    fi
+    
     # Measure execution time and memory using /usr/bin/time -v
     if command -v /usr/bin/time >/dev/null 2>&1; then
         # Use /usr/bin/time -v for detailed statistics
         TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_gpu --model "$MODEL_DIR" --device gpu --batch_size "$BATCH" 2>&1)
+        
+        # Stop GPU memory monitoring
+        if [ -n "$GPU_MONITOR_PID" ]; then
+            kill $GPU_MONITOR_PID 2>/dev/null
+            wait $GPU_MONITOR_PID 2>/dev/null
+        fi
         
         # Extract time from program output (if available)
         TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | grep -oE '[0-9]+\.[0-9]+' | head -1)
@@ -114,6 +143,12 @@ for i in $(seq 1 $RUNS); do
         wait $INFERENCE_PID
         END=$(date +%s.%N 2>/dev/null || date +%s)
         
+        # Stop GPU memory monitoring
+        if [ -n "$GPU_MONITOR_PID" ]; then
+            kill $GPU_MONITOR_PID 2>/dev/null
+            wait $GPU_MONITOR_PID 2>/dev/null
+        fi
+        
         # Read output
         OUTPUT_TEXT=$(cat /tmp/inference_output_$$.txt)
         rm -f /tmp/inference_output_$$.txt
@@ -135,14 +170,21 @@ for i in $(seq 1 $RUNS); do
         fi
     fi
     
-    # Get GPU memory usage (if available)
+    # Calculate peak GPU memory usage from monitoring data
     GPU_MEMORY_MB="N/A"
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        # Get GPU memory usage after inference
-        GPU_MEM=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
-        if [ -n "$GPU_MEM" ]; then
-            GPU_MEMORY_MB="$GPU_MEM"
+    if [ -f "$GPU_MEM_FILE" ]; then
+        # Find peak GPU memory usage during inference
+        PEAK_GPU_MEM=$(sort -n "$GPU_MEM_FILE" | tail -1)
+        if [ -n "$PEAK_GPU_MEM" ] && [ "$PEAK_GPU_MEM" -gt 0 ]; then
+            # Calculate actual memory used by our program (peak - baseline)
+            # Note: Peak includes our program's memory + baseline GPU usage
+            GPU_MEMORY_MB=$((PEAK_GPU_MEM - GPU_BASELINE_MB))
+            # Ensure it's not negative (in case baseline was higher due to other processes)
+            if [ "$GPU_MEMORY_MB" -lt 0 ]; then
+                GPU_MEMORY_MB=$PEAK_GPU_MEM
+            fi
         fi
+        rm -f "$GPU_MEM_FILE"
     fi
     
     # Write to CSV
