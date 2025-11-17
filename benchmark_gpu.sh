@@ -70,22 +70,22 @@ for i in $(seq 1 $RUNS); do
     
     # Get baseline GPU memory before inference (if available)
     GPU_BASELINE_MB=0
+    GPU_MEM_FILE="/tmp/gpu_mem_$$.txt"
     if command -v nvidia-smi >/dev/null 2>&1; then
         GPU_BASELINE_MB=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
         if [ -z "$GPU_BASELINE_MB" ]; then
             GPU_BASELINE_MB=0
         fi
-    fi
-    
-    # Start GPU memory monitoring in background (monitor during inference)
-    GPU_MONITOR_PID=""
-    GPU_MEM_FILE="/tmp/gpu_mem_$$.txt"
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        # Monitor GPU memory every 50ms during inference
+        
+        # Record baseline immediately before inference starts
+        echo "$GPU_BASELINE_MB" > "$GPU_MEM_FILE"
+        
+        # Start GPU memory monitoring in background (monitor during inference)
+        # Use shorter interval (10ms) to capture fast inferences
         (
             while true; do
                 nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 >> "$GPU_MEM_FILE"
-                sleep 0.05
+                sleep 0.01  # 10ms interval for better capture of short inferences
             done
         ) &
         GPU_MONITOR_PID=$!
@@ -95,6 +95,11 @@ for i in $(seq 1 $RUNS); do
     if command -v /usr/bin/time >/dev/null 2>&1; then
         # Use /usr/bin/time -v for detailed statistics
         TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_gpu --model "$MODEL_DIR" --device gpu --batch_size "$BATCH" 2>&1)
+        
+        # Record GPU memory immediately after inference ends (before stopping monitor)
+        if [ -n "$GPU_MEM_FILE" ] && command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 >> "$GPU_MEM_FILE"
+        fi
         
         # Stop GPU memory monitoring
         if [ -n "$GPU_MONITOR_PID" ]; then
@@ -142,6 +147,11 @@ for i in $(seq 1 $RUNS); do
         
         wait $INFERENCE_PID
         END=$(date +%s.%N 2>/dev/null || date +%s)
+        
+        # Record GPU memory immediately after inference ends (before stopping monitor)
+        if [ -n "$GPU_MEM_FILE" ] && command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 >> "$GPU_MEM_FILE"
+        fi
         
         # Stop GPU memory monitoring
         if [ -n "$GPU_MONITOR_PID" ]; then
