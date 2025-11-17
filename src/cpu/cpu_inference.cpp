@@ -135,6 +135,11 @@ bool CPUInference::infer(const float* image_data, float* output, int batch_size)
     // Input shape: [batch_size, 3, 224, 224]
     std::vector<int> current_shape = {batch_size, 3, 224, 224};
     
+    // Debug: Verify batch_size
+    std::cout << "[CPU Debug] batch_size=" << batch_size 
+              << ", input_size=" << (batch_size * 3 * 224 * 224) 
+              << ", max_buffer_size=" << max_buffer_size << std::endl;
+    
     // Copy input images to first buffer
     std::memcpy(bufferA.data(), image_data, batch_size * 3 * 224 * 224 * sizeof(float));
     
