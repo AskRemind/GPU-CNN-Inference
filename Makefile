@@ -63,6 +63,11 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -c $< -o $@
 
+# Compile CPU Multicore source files with OpenMP
+$(BUILD_DIR)/cpu_multicore/%.o: $(SRC_DIR)/cpu_multicore/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(OPENMP_FLAGS) $(INCLUDE_DIR) -c $< -o $@
+
 # Compile main.cpp with different defines for different targets
 $(MAIN_OBJ_CPU): $(MAIN_SRC)
 	@mkdir -p $(BUILD_DIR)
