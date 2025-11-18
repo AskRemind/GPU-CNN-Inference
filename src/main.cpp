@@ -28,7 +28,6 @@ int main(int argc, char* argv[]) {
     std::string device = "cpu";
     int batch_size = 1;
     
-    // Parse command line arguments (simple implementation)
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         if (arg == "--model" && i + 1 < argc) {
@@ -60,7 +59,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Device: " << device << std::endl;
     std::cout << "Batch size: " << batch_size << std::endl;
     
-    // For now, create dummy input (will be replaced with image loader)
     std::vector<float> dummy_input(batch_size * 3 * 224 * 224, 0.0f);
     std::vector<float> output(batch_size * 1000);
     
@@ -75,7 +73,6 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
-        // Start timer AFTER initialization (only measure inference time)
         timer.start();
         if (!inference.infer(dummy_input.data(), output.data(), batch_size)) {
             std::cerr << "Inference failed" << std::endl;
@@ -96,7 +93,6 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
-        // Start timer AFTER initialization (only measure inference time)
         timer.start();
         if (!inference.infer(dummy_input.data(), output.data(), batch_size)) {
             std::cerr << "Inference failed" << std::endl;
@@ -117,8 +113,6 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
-        // Start timer AFTER initialization (only measure inference time)
-        // This excludes CUDA context initialization, weight upload, etc.
         timer.start();
         if (!inference.infer(dummy_input.data(), output.data(), batch_size)) {
             std::cerr << "Inference failed" << std::endl;
@@ -138,7 +132,6 @@ int main(int argc, char* argv[]) {
     
     std::cout << "\nInference completed in " << timer.elapsed_ms() << " ms" << std::endl;
     
-    // Find top 5 predictions (for first image in batch if batch_size > 1)
     if (batch_size == 1) {
         std::vector<std::pair<float, int>> predictions;
         for (int i = 0; i < 1000; i++) {

@@ -28,14 +28,12 @@ bool CPUMaxPool2D::forward(const float* input, const std::vector<int>& input_sha
                             int iw = ow * stride_ + kw;
                             
                             if (ih < in_h && iw < in_w) {
-                                // Fix: Add batch offset to input index
                                 int idx = b * channels * in_h * in_w + c * in_h * in_w + ih * in_w + iw;
                                 max_val = std::max(max_val, input[idx]);
                             }
                         }
                     }
                     
-                    // Fix: Add batch offset to output index
                     int out_idx = b * channels * out_h * out_w + c * out_h * out_w + oh * out_w + ow;
                     output[out_idx] = max_val;
                 }
@@ -56,7 +54,6 @@ CPULinear::CPULinear(const float* weights, const float* bias,
 
 bool CPULinear::forward(const float* input, const std::vector<int>& input_shape,
                        float* output, std::vector<int>& output_shape) {
-    // Input: [batch, features] (flattened)
     int batch = input_shape[0];
     int features = 1;
     for (size_t i = 1; i < input_shape.size(); i++) {
@@ -70,7 +67,6 @@ bool CPULinear::forward(const float* input, const std::vector<int>& input_shape,
     
     output_shape = {batch, out_features_};
     
-    // Matrix multiplication: output = input * weight^T + bias
     for (int b = 0; b < batch; b++) {
         for (int of = 0; of < out_features_; of++) {
             float sum = bias_[of];
@@ -99,13 +95,11 @@ bool CPUSoftmax::forward(const float* input, const std::vector<int>& input_shape
     }
     
     for (int b = 0; b < batch; b++) {
-        // Find max for numerical stability
         float max_val = input[b * num_classes];
         for (int i = 1; i < num_classes; i++) {
             max_val = std::max(max_val, input[b * num_classes + i]);
         }
         
-        // Compute exp and sum
         float sum = 0.0f;
         for (int i = 0; i < num_classes; i++) {
             float exp_val = std::exp(input[b * num_classes + i] - max_val);
@@ -113,7 +107,6 @@ bool CPUSoftmax::forward(const float* input, const std::vector<int>& input_shape
             sum += exp_val;
         }
         
-        // Normalize
         for (int i = 0; i < num_classes; i++) {
             output[b * num_classes + i] /= sum;
         }

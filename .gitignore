@@ -78,3 +78,12 @@ g.txt
 
 # Local documentation (not for GitHub)
 BUGS_AND_FIXES.md
+readme.txt
+analyze_results.py
+
+# Project report
+GPU-Accelerated CNN Inference for VGG11.pdf
+*.pdf
+
+# Plot results (generated)
+plots/

@@ -22,27 +22,23 @@
         } \
     } while(0)
 
-// CUDA kernel for 2D convolution
 __global__ void conv2d_kernel(
     const float* input, const float* weights, const float* bias,
     float* output,
     int batch, int in_channels, int out_channels,
-    int in_h, int in_w, int out_h, int out_w,
+    int in_h,     int in_w, int out_h, int out_w,
     int kernel_size, int padding, int stride) {
     
-    // Each thread handles one output element
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int total_output = batch * out_channels * out_h * out_w;
     
     if (idx >= total_output) return;
     
-    // Calculate output position
     int b = idx / (out_channels * out_h * out_w);
     int oc = (idx / (out_h * out_w)) % out_channels;
     int oh = (idx / out_w) % out_h;
     int ow = idx % out_w;
     
-    // Accumulate convolution result
     float sum = bias[oc];
     
     for (int ic = 0; ic < in_channels; ic++) {
@@ -67,7 +63,6 @@ __global__ void conv2d_kernel(
     output[idx] = sum;
 }
 
-// Kernel launcher
 extern "C" void launchConv2DKernel(
     const float* input, const float* weights, const float* bias,
     float* output,
@@ -155,19 +150,14 @@ bool GPUConv2D::forward(const float* input, const std::vector<int>& input_shape,
     int out_w = (in_w + 2 * padding_ - kernel_size_) / stride_ + 1;
     output_shape = {batch, out_channels_, out_h, out_w};
     
-    // Input and output pointers are already on GPU (managed by GPUInference)
-    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
-    // Cast to non-const for kernel launch (kernel doesn't modify input)
     float* device_input = const_cast<float*>(input);
     float* device_output = output;
     
-    // Launch kernel directly (all data already on GPU)
     launchConv2DKernel(device_input, device_weights_, device_bias_, device_output,
                       batch, in_channels_, out_channels_,
                       in_h, in_w, out_h, out_w,
                       kernel_size_, padding_, stride_);
     
-    // Check for kernel errors
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cerr << "Kernel launch error: " << cudaGetErrorString(err) << std::endl;

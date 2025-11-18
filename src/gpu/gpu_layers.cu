@@ -14,7 +14,6 @@
         } \
     } while(0)
 
-// CUDA kernel for ReLU
 __global__ void relu_kernel(const float* input, float* output, int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
@@ -35,12 +34,9 @@ bool GPURELU::forward(const float* input, const std::vector<int>& input_shape,
     int size = 1;
     for (int dim : input_shape) size *= dim;
     
-    // Input and output pointers are already on GPU (managed by GPUInference)
-    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
     float* device_input = const_cast<float*>(input);
     float* device_output = output;
     
-    // Launch kernel directly (all data already on GPU)
     launchRELUKernel(device_input, device_output, size);
     
     cudaError_t err = cudaGetLastError();
@@ -52,7 +48,6 @@ bool GPURELU::forward(const float* input, const std::vector<int>& input_shape,
     return true;
 }
 
-// CUDA kernel for MaxPool2D
 __global__ void maxpool2d_kernel(
     const float* input, float* output,
     int batch, int channels, int in_h, int in_w, int out_h, int out_w,
@@ -113,12 +108,9 @@ bool GPUMaxPool2D::forward(const float* input, const std::vector<int>& input_sha
     
     output_shape = {batch, channels, out_h, out_w};
     
-    // Input and output pointers are already on GPU (managed by GPUInference)
-    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
     float* device_input = const_cast<float*>(input);
     float* device_output = output;
     
-    // Launch kernel directly (all data already on GPU)
     launchMaxPool2DKernel(device_input, device_output,
                          batch, channels, in_h, in_w, out_h, out_w,
                          kernel_size_, stride_);
@@ -132,7 +124,6 @@ bool GPUMaxPool2D::forward(const float* input, const std::vector<int>& input_sha
     return true;
 }
 
-// CUDA kernel for Linear (Matrix Multiplication)
 __global__ void linear_kernel(
     const float* input, const float* weights, const float* bias,
     float* output,
@@ -226,12 +217,9 @@ bool GPULinear::forward(const float* input, const std::vector<int>& input_shape,
     
     output_shape = {batch, out_features_};
     
-    // Input and output pointers are already on GPU (managed by GPUInference)
-    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
     float* device_input = const_cast<float*>(input);
     float* device_output = output;
     
-    // Launch kernel directly (all data already on GPU)
     launchLinearKernel(device_input, device_weights_, device_bias_, device_output,
                       batch, in_features_, out_features_);
     
@@ -244,19 +232,16 @@ bool GPULinear::forward(const float* input, const std::vector<int>& input_shape,
     return true;
 }
 
-// CUDA kernel for Softmax
 __global__ void softmax_kernel(const float* input, float* output,
                                int batch, int num_classes) {
     int b = blockIdx.x;
     if (b >= batch) return;
     
-    // Find max for numerical stability
     float max_val = input[b * num_classes];
     for (int i = 1; i < num_classes; i++) {
         max_val = fmaxf(max_val, input[b * num_classes + i]);
     }
     
-    // Compute exp and sum
     float sum = 0.0f;
     for (int i = 0; i < num_classes; i++) {
         float exp_val = expf(input[b * num_classes + i] - max_val);
@@ -264,7 +249,6 @@ __global__ void softmax_kernel(const float* input, float* output,
         sum += exp_val;
     }
     
-    // Normalize
     for (int i = 0; i < num_classes; i++) {
         output[b * num_classes + i] /= sum;
     }
@@ -286,12 +270,9 @@ bool GPUSoftmax::forward(const float* input, const std::vector<int>& input_shape
         num_classes *= input_shape[i];
     }
     
-    // Input and output pointers are already on GPU (managed by GPUInference)
-    // No cudaMalloc, cudaMemcpy, or cudaFree needed here
     float* device_input = const_cast<float*>(input);
     float* device_output = output;
     
-    // Launch kernel directly (all data already on GPU)
     launchSoftmaxKernel(device_input, device_output, batch, num_classes);
     
     cudaError_t err = cudaGetLastError();

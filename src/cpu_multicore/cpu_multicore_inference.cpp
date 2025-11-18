@@ -26,8 +26,6 @@ bool CPUMulticoreInference::initialize(const std::string& model_dir) {
 void CPUMulticoreInference::buildNetwork() {
     layers_.clear();
     
-    // VGG11 architecture (same as CPU sequential)
-    // Conv layers
     layers_.push_back(std::make_unique<CPUMulticoreConv2D>(
         model_loader_.getWeights("conv0.weight"),
         model_loader_.getWeights("conv0.bias"),
@@ -81,7 +79,6 @@ void CPUMulticoreInference::buildNetwork() {
     layers_.push_back(std::make_unique<CPUMulticoreReLU>("relu7"));
     layers_.push_back(std::make_unique<CPUMulticoreMaxPool2D>(2, 2, "pool4"));
     
-    // Fully connected layers
     layers_.push_back(std::make_unique<CPUMulticoreLinear>(
         model_loader_.getWeights("fc0.weight"),
         model_loader_.getWeights("fc0.bias"),
@@ -115,49 +112,37 @@ bool CPUMulticoreInference::infer(const float* image_data, float* output, int ba
         return false;
     }
     
-    // Use ping-pong buffers to avoid unnecessary memory copies
-    // Maximum intermediate buffer size: [batch_size, 64, 224, 224]
-    static std::vector<float> bufferA(3211264);  // For batch=1: [1, 64, 224, 224]
+    static std::vector<float> bufferA(3211264);
     static std::vector<float> bufferB(3211264);
-    static int current_buffer_size = 3211264;  // Track current buffer size
+    static int current_buffer_size = 3211264;
     
-    // Calculate required buffer size
-    int max_buffer_size = batch_size * 64 * 224 * 224;  // After conv0
+    int max_buffer_size = batch_size * 64 * 224 * 224;
     if (max_buffer_size > current_buffer_size) {
-        // Need larger buffers for larger batches - resize directly
         bufferA.resize(max_buffer_size);
         bufferB.resize(max_buffer_size);
         current_buffer_size = max_buffer_size;
     }
     
-    // Input shape: [batch_size, 3, 224, 224]
     std::vector<int> current_shape = {batch_size, 3, 224, 224};
     
-    // Copy input images to first buffer
     std::memcpy(bufferA.data(), image_data, batch_size * 3 * 224 * 224 * sizeof(float));
     
-    // Use pointers to swap buffers without copying data
     float* input_ptr = bufferA.data();
     float* output_ptr = bufferB.data();
-    
-    // Forward pass through all layers
     for (size_t i = 0; i < layers_.size(); i++) {
         std::vector<int> next_shape;
         next_shape = layers_[i]->getOutputShape(current_shape);
         
         if (i == layers_.size() - 1) {
-            // Last layer: output directly to provided buffer
             if (!layers_[i]->forward(input_ptr, current_shape,
                                     output, next_shape)) {
                 return false;
             }
         } else {
-            // Intermediate layers: write to output buffer
             if (!layers_[i]->forward(input_ptr, current_shape,
                                     output_ptr, next_shape)) {
                 return false;
             }
-            // Swap pointers instead of copying data (ping-pong buffers)
             std::swap(input_ptr, output_ptr);
             current_shape = next_shape;
         }

@@ -31,14 +31,12 @@ bool CPUMulticoreMaxPool2D::forward(const float* input, const std::vector<int>& 
                             int iw = ow * stride_ + kw;
                             
                             if (ih < in_h && iw < in_w) {
-                                // Fix: Add batch offset to input index
                                 int idx = b * channels * in_h * in_w + c * in_h * in_w + ih * in_w + iw;
                                 max_val = std::max(max_val, input[idx]);
                             }
                         }
                     }
                     
-                    // Fix: Add batch offset to output index
                     int out_idx = b * channels * out_h * out_w + c * out_h * out_w + oh * out_w + ow;
                     output[out_idx] = max_val;
                 }
@@ -59,7 +57,6 @@ CPUMulticoreLinear::CPUMulticoreLinear(const float* weights, const float* bias,
 
 bool CPUMulticoreLinear::forward(const float* input, const std::vector<int>& input_shape,
                                  float* output, std::vector<int>& output_shape) {
-    // Input: [batch, features] (flattened)
     int batch = input_shape[0];
     int features = 1;
     for (size_t i = 1; i < input_shape.size(); i++) {
@@ -73,7 +70,6 @@ bool CPUMulticoreLinear::forward(const float* input, const std::vector<int>& inp
     
     output_shape = {batch, out_features_};
     
-    // Matrix multiplication: output = input * weight^T + bias (parallelized)
     #pragma omp parallel for collapse(2)
     for (int b = 0; b < batch; b++) {
         for (int of = 0; of < out_features_; of++) {
@@ -102,17 +98,12 @@ bool CPUMulticoreSoftmax::forward(const float* input, const std::vector<int>& in
         num_classes *= input_shape[i];
     }
     
-    // Note: Do NOT parallelize batch loop when batch=1, as it causes:
-    // 1. Unnecessary thread creation overhead (more than the computation itself)
-    // 2. Softmax computation is relatively fast, parallelization overhead not worth it
     for (int b = 0; b < batch; b++) {
-        // Find max for numerical stability
         float max_val = input[b * num_classes];
         for (int i = 1; i < num_classes; i++) {
             max_val = std::max(max_val, input[b * num_classes + i]);
         }
         
-        // Compute exp and sum
         float sum = 0.0f;
         for (int i = 0; i < num_classes; i++) {
             float exp_val = std::exp(input[b * num_classes + i] - max_val);
@@ -120,7 +111,6 @@ bool CPUMulticoreSoftmax::forward(const float* input, const std::vector<int>& in
             sum += exp_val;
         }
         
-        // Normalize
         for (int i = 0; i < num_classes; i++) {
             output[b * num_classes + i] /= sum;
         }

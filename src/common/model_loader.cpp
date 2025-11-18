@@ -44,33 +44,29 @@ float* ModelLoader::loadWeightFile(const std::string& filepath, int size) {
 bool ModelLoader::loadWeights(const std::string& model_dir) {
     cleanup();
     
-    // List of weight files to load (based on VGG11 architecture)
     std::vector<std::pair<std::string, int>> weight_files = {
-        // Convolutional layers
-        {"conv0.weight", 64 * 3 * 3 * 3},      // [64, 3, 3, 3]
-        {"conv0.bias", 64},                     // [64]
-        {"conv1.weight", 128 * 64 * 3 * 3},    // [128, 64, 3, 3]
-        {"conv1.bias", 128},                    // [128]
-        {"conv2.weight", 256 * 128 * 3 * 3},   // [256, 128, 3, 3]
-        {"conv2.bias", 256},                    // [256]
-        {"conv3.weight", 256 * 256 * 3 * 3},   // [256, 256, 3, 3]
-        {"conv3.bias", 256},                    // [256]
-        {"conv4.weight", 512 * 256 * 3 * 3},   // [512, 256, 3, 3]
-        {"conv4.bias", 512},                    // [512]
-        {"conv5.weight", 512 * 512 * 3 * 3},   // [512, 512, 3, 3]
-        {"conv5.bias", 512},                    // [512]
-        {"conv6.weight", 512 * 512 * 3 * 3},   // [512, 512, 3, 3]
-        {"conv6.bias", 512},                    // [512]
-        {"conv7.weight", 512 * 512 * 3 * 3},   // [512, 512, 3, 3]
-        {"conv7.bias", 512},                    // [512]
-        
-        // Fully connected layers
-        {"fc0.weight", 4096 * 25088},          // [4096, 25088]
-        {"fc0.bias", 4096},                     // [4096]
-        {"fc1.weight", 4096 * 4096},           // [4096, 4096]
-        {"fc1.bias", 4096},                     // [4096]
-        {"fc2.weight", 1000 * 4096},           // [1000, 4096]
-        {"fc2.bias", 1000}                      // [1000]
+        {"conv0.weight", 64 * 3 * 3 * 3},
+        {"conv0.bias", 64},
+        {"conv1.weight", 128 * 64 * 3 * 3},
+        {"conv1.bias", 128},
+        {"conv2.weight", 256 * 128 * 3 * 3},
+        {"conv2.bias", 256},
+        {"conv3.weight", 256 * 256 * 3 * 3},
+        {"conv3.bias", 256},
+        {"conv4.weight", 512 * 256 * 3 * 3},
+        {"conv4.bias", 512},
+        {"conv5.weight", 512 * 512 * 3 * 3},
+        {"conv5.bias", 512},
+        {"conv6.weight", 512 * 512 * 3 * 3},
+        {"conv6.bias", 512},
+        {"conv7.weight", 512 * 512 * 3 * 3},
+        {"conv7.bias", 512},
+        {"fc0.weight", 4096 * 25088},
+        {"fc0.bias", 4096},
+        {"fc1.weight", 4096 * 4096},
+        {"fc1.bias", 4096},
+        {"fc2.weight", 1000 * 4096},
+        {"fc2.bias", 1000}
     };
     
     std::cout << "Loading model weights from: " << model_dir << std::endl;
@@ -91,10 +87,8 @@ bool ModelLoader::loadWeights(const std::string& model_dir) {
         weights_[filename] = weights;
         total_params_ += size;
         
-        // Calculate shape from size (for reference)
         std::vector<int> shape;
         if (filename.find("conv") != std::string::npos && filename.find("weight") != std::string::npos) {
-            // Convolution weights: [out_channels, in_channels, kernel_h, kernel_w]
             if (filename == "conv0.weight") shape = {64, 3, 3, 3};
             else if (filename == "conv1.weight") shape = {128, 64, 3, 3};
             else if (filename == "conv2.weight") shape = {256, 128, 3, 3};
@@ -104,15 +98,12 @@ bool ModelLoader::loadWeights(const std::string& model_dir) {
             else if (filename == "conv6.weight") shape = {512, 512, 3, 3};
             else if (filename == "conv7.weight") shape = {512, 512, 3, 3};
         } else if (filename.find("conv") != std::string::npos && filename.find("bias") != std::string::npos) {
-            // Bias: [out_channels]
             shape = {size};
         } else if (filename.find("fc") != std::string::npos && filename.find("weight") != std::string::npos) {
-            // FC weights: [out_features, in_features]
             if (filename == "fc0.weight") shape = {4096, 25088};
             else if (filename == "fc1.weight") shape = {4096, 4096};
             else if (filename == "fc2.weight") shape = {1000, 4096};
         } else if (filename.find("fc") != std::string::npos && filename.find("bias") != std::string::npos) {
-            // FC bias: [out_features]
             shape = {size};
         }
         

@@ -15,7 +15,6 @@ CPUMulticoreConv2D::CPUMulticoreConv2D(const float* weights, const float* bias,
 }
 
 std::vector<int> CPUMulticoreConv2D::getOutputShape(const std::vector<int>& input_shape) const {
-    // Input shape: [batch, channels, height, width]
     int batch = input_shape[0];
     int in_h = input_shape[2];
     int in_w = input_shape[3];
@@ -28,7 +27,6 @@ std::vector<int> CPUMulticoreConv2D::getOutputShape(const std::vector<int>& inpu
 
 bool CPUMulticoreConv2D::forward(const float* input, const std::vector<int>& input_shape,
                                  float* output, std::vector<int>& output_shape) {
-    // Input shape: [batch, channels, height, width]
     int batch = input_shape[0];
     int in_channels = input_shape[1];
     int in_h = input_shape[2];
@@ -43,18 +41,12 @@ bool CPUMulticoreConv2D::forward(const float* input, const std::vector<int>& inp
     int out_w = (in_w + 2 * padding_ - kernel_size_) / stride_ + 1;
     output_shape = {batch, out_channels_, out_h, out_w};
     
-    // Initialize output with bias
-    // Note: Bias initialization is fast, no need to parallelize for batch=1
     int output_size = batch * out_channels_ * out_h * out_w;
     for (int i = 0; i < output_size; i++) {
         int channel = (i / (out_h * out_w)) % out_channels_;
         output[i] = bias_[channel];
     }
     
-    // Perform convolution for each batch
-    // Note: Do NOT parallelize batch loop when batch=1, as it causes:
-    // 1. Unnecessary thread creation overhead
-    // 2. Nested parallelism issues that disable parallelization in convolve()
     for (int b = 0; b < batch; b++) {
         convolve(input + b * in_channels_ * in_h * in_w,
                 output + b * out_channels_ * out_h * out_w,
@@ -66,21 +58,18 @@ bool CPUMulticoreConv2D::forward(const float* input, const std::vector<int>& inp
 
 void CPUMulticoreConv2D::convolve(const float* input, float* output,
                                   int batch, int in_h, int in_w, int out_h, int out_w) {
-    // Parallelize outer loops (output channels and spatial dimensions)
     #pragma omp parallel for collapse(3)
     for (int oc = 0; oc < out_channels_; oc++) {
         for (int oh = 0; oh < out_h; oh++) {
             for (int ow = 0; ow < out_w; ow++) {
                 float sum = 0.0f;
                 
-                // Convolution window (inner loops not parallelized for cache efficiency)
                 for (int ic = 0; ic < in_channels_; ic++) {
                     for (int kh = 0; kh < kernel_size_; kh++) {
                         for (int kw = 0; kw < kernel_size_; kw++) {
                             int ih = oh * stride_ + kh - padding_;
                             int iw = ow * stride_ + kw - padding_;
                             
-                            // Check bounds (with padding)
                             if (ih >= 0 && ih < in_h && iw >= 0 && iw < in_w) {
                                 int input_idx = ic * in_h * in_w + ih * in_w + iw;
                                 int weight_idx = oc * in_channels_ * kernel_size_ * kernel_size_ +

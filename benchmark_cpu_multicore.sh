@@ -67,10 +67,7 @@ for i in $(seq 1 $RUNS); do
     if command -v /usr/bin/time >/dev/null 2>&1; then
         # Use /usr/bin/time -v for detailed statistics
         TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_cpu_multicore --model "$MODEL_DIR" --device cpu_multicore --batch_size "$BATCH" 2>&1)
-        
-        # Extract time from program output (if available)
-        # Match "Inference completed in X.XX ms" - extract the number before " ms"
-        # Use awk for better compatibility
+
         TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | awk '{for(i=1;i<=NF;i++){if($i=="ms" && $(i-1)~/^[0-9]+\.?[0-9]*$/){print $(i-1); exit}}}')
         
         # If time extraction failed, use elapsed time from /usr/bin/time
@@ -115,9 +112,7 @@ for i in $(seq 1 $RUNS); do
         OUTPUT_TEXT=$(cat /tmp/inference_output_$$.txt)
         rm -f /tmp/inference_output_$$.txt
         
-        # Extract time from output
-        # Match "Inference completed in X.XX ms" - extract the number before " ms"
-        # Use awk for better compatibility
+        
         TIME_MS=$(echo "$OUTPUT_TEXT" | grep "Inference completed" | awk '{for(i=1;i<=NF;i++){if($i=="ms" && $(i-1)~/^[0-9]+\.?[0-9]*$/){print $(i-1); exit}}}')
         
         # If time extraction failed, use wall-clock time

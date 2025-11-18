@@ -5,7 +5,6 @@
 #include <cuda_runtime.h>
 
 GPUInference::GPUInference() : initialized_(false) {
-    // Initialize CUDA device
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
     std::cout << "GPU: " << prop.name << std::endl;
@@ -31,8 +30,6 @@ bool GPUInference::initialize(const std::string& model_dir) {
 void GPUInference::buildNetwork() {
     layers_.clear();
     
-    // VGG11 architecture (same as CPU versions)
-    // Conv layers
     layers_.push_back(std::make_unique<GPUConv2D>(
         model_loader_.getWeights("conv0.weight"),
         model_loader_.getWeights("conv0.bias"),
@@ -86,7 +83,6 @@ void GPUInference::buildNetwork() {
     layers_.push_back(std::make_unique<GPURELU>("relu7"));
     layers_.push_back(std::make_unique<GPUMaxPool2D>(2, 2, "pool4"));
     
-    // Fully connected layers
     layers_.push_back(std::make_unique<GPULinear>(
         model_loader_.getWeights("fc0.weight"),
         model_loader_.getWeights("fc0.bias"),
@@ -120,12 +116,8 @@ bool GPUInference::infer(const float* image_data, float* output, int batch_size)
         return false;
     }
     
-    // Use ping-pong buffers on GPU to avoid Host-GPU-Host round trips
-    // Maximum intermediate buffer size: [batch_size, 64, 224, 224]
-    // For batch_size up to 32, max is: 32 * 64 * 224 * 224 = 102,760,448
-    int max_buffer_size = batch_size * 64 * 224 * 224;  // After conv0
+    int max_buffer_size = batch_size * 64 * 224 * 224;
     
-    // Allocate GPU buffers (static for reuse across inference calls)
     static float* device_buffer_A = nullptr;
     static float* device_buffer_B = nullptr;
     static int allocated_buffer_size = 0;
@@ -140,7 +132,6 @@ bool GPUInference::infer(const float* image_data, float* output, int batch_size)
             } \
         } while(0)
     
-    // Allocate or reallocate buffers if needed
     if (!device_buffer_A || max_buffer_size > allocated_buffer_size) {
         if (device_buffer_A) {
             cudaFree(device_buffer_A);
@@ -151,51 +142,41 @@ bool GPUInference::infer(const float* image_data, float* output, int batch_size)
         allocated_buffer_size = max_buffer_size;
     }
     
-    // Input shape: [batch_size, 3, 224, 224]
     std::vector<int> current_shape = {batch_size, 3, 224, 224};
     
-    // Copy input images to GPU (ONCE at the beginning)
     CHECK_CUDA_RET(cudaMemcpy(device_buffer_A, image_data,
                              (batch_size * 3 * 224 * 224) * sizeof(float),
                              cudaMemcpyHostToDevice));
     
-    // Use pointers to swap buffers without copying data
     float* device_input_ptr = device_buffer_A;
     float* device_output_ptr = device_buffer_B;
     
-    // Forward pass through all layers (all data stays on GPU)
     for (size_t i = 0; i < layers_.size(); i++) {
         std::vector<int> next_shape;
         next_shape = layers_[i]->getOutputShape(current_shape);
         
         if (i == layers_.size() - 1) {
-            // Last layer: allocate temporary GPU buffer for final output
-            int final_size = batch_size * 1000;  // [batch_size, 1000]
+            int final_size = batch_size * 1000;
             float* final_device_output;
             CHECK_CUDA_RET(cudaMalloc(&final_device_output, final_size * sizeof(float)));
             
-            // Last layer forward pass (all on GPU)
             if (!layers_[i]->forward(device_input_ptr, current_shape,
                                     final_device_output, next_shape)) {
                 cudaFree(final_device_output);
                 return false;
             }
             
-            // Copy final result from GPU to CPU (ONCE at the end)
             CHECK_CUDA_RET(cudaMemcpy(output, final_device_output,
                                      final_size * sizeof(float),
                                      cudaMemcpyDeviceToHost));
             
             cudaFree(final_device_output);
         } else {
-            // Intermediate layers: ping-pong between GPU buffers
-            // Note: GPU layers expect GPU pointers, even though Layer interface uses const float*
             if (!layers_[i]->forward(device_input_ptr, current_shape,
                                     device_output_ptr, next_shape)) {
                 return false;
             }
             
-            // Swap pointers instead of copying data (no Host-GPU-Host round trip)
             std::swap(device_input_ptr, device_output_ptr);
             current_shape = next_shape;
         }

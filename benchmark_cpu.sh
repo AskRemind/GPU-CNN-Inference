@@ -63,18 +63,11 @@ echo "run,batch_size,time_ms,memory_mb" > "$OUTPUT"
 for i in $(seq 1 $RUNS); do
     echo "Run $i/$RUNS..."
     
-    # Run inference and capture output
-    # Note: Current implementation doesn't support batch size yet
-    # This will be updated when batch inference is implemented
-    
     # Measure execution time and memory using /usr/bin/time -v
     if command -v /usr/bin/time >/dev/null 2>&1; then
         # Use /usr/bin/time -v for detailed statistics
         TIME_OUTPUT=$(/usr/bin/time -v ./build/cnn_inference_cpu --model "$MODEL_DIR" --device cpu --batch_size "$BATCH" 2>&1)
         
-        # Extract time from program output (if available)
-        # Match "Inference completed in X.XX ms" - extract the number before " ms"
-        # Use awk for better compatibility
         TIME_MS=$(echo "$TIME_OUTPUT" | grep "Inference completed" | awk '{for(i=1;i<=NF;i++){if($i=="ms" && $(i-1)~/^[0-9]+\.?[0-9]*$/){print $(i-1); exit}}}')
         
         # If time extraction failed, use elapsed time from /usr/bin/time
